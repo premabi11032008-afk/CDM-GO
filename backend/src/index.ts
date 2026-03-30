@@ -36,7 +36,16 @@ app.post('/api/execute', async (req, res) => {
     for (const statement of statements) {
       try {
         // Run query
-        const result: any = await prisma.$queryRawUnsafe(statement);
+        let result: any = await prisma.$queryRawUnsafe(statement);
+        
+        // Hide internal tables from structural queries (like SHOW TABLES)
+        if (Array.isArray(result)) {
+           result = result.filter(row => {
+             const lowerValues = Object.values(row).map(v => String(v).toLowerCase());
+             const hidden = ['queryhistory', '_prisma_migrations', 'sys_config'];
+             return !lowerValues.some(v => hidden.includes(v));
+           });
+        }
         
         // Save to query history
         await prisma.queryHistory.create({
@@ -50,7 +59,19 @@ app.post('/api/execute', async (req, res) => {
         // Push object wrapping the query string and its result for frontend
         multiResults.push({ statement, result: serialized });
       } catch (err: any) {
-         multiResults.push({ statement, error: err.message });
+         let aiExplanation = "";
+         if (process.env.GEMINI_API_KEY) {
+            try {
+               const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+               const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+               const aiPrompt = `The following MySQL query failed with an error.\nQuery: "${statement}"\nError: "${err.message}"\nExplain exactly why this failed in 1-2 simple sentences and provide the corrected SQL string. Keep it concise.`;
+               const aiRes = await model.generateContent(aiPrompt);
+               aiExplanation = await aiRes.response.text();
+            } catch (e) {
+               console.error("AI Error Explanation failed", e);
+            }
+         }
+         multiResults.push({ statement, error: err.message, aiExplanation });
       }
     }
 
