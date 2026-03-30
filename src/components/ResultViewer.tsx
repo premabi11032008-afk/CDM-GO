@@ -1,18 +1,20 @@
-import { useState } from "react";
-import { Table, Code, BarChart2, Download, Filter, MoreHorizontal, Maximize2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Table, Code, BarChart2, Download, Filter, MoreHorizontal, Maximize2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
-const mockData = [
-  { id: 1, email: "alice@example.com", status: "online", logins: 120 },
-  { id: 2, email: "bob@example.com", status: "offline", logins: 45 },
-  { id: 3, email: "charlie@example.com", status: "online", logins: 300 },
-  { id: 4, email: "dave@example.com", status: "online", logins: 80 },
-  { id: 5, email: "eve@example.com", status: "offline", logins: 12 },
-];
+import { useAppStore } from "@/store/useAppStore";
+import { Reorder } from "framer-motion";
 
 export function ResultViewer() {
   const [viewMode, setViewMode] = useState<"table" | "json" | "chart">("table");
+  const { queryResult } = useAppStore();
+  const [items, setItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    setItems(queryResult || []);
+  }, [queryResult]);
+
+  const containerRef = useRef(null);
 
   return (
     <div className="flex flex-col h-full bg-card rounded-2xl border border-border/50 cozy-shadow overflow-hidden">
@@ -52,7 +54,7 @@ export function ResultViewer() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground mr-2 font-medium">120 rows in 45ms</span>
+          <span className="text-xs text-muted-foreground mr-2 font-medium">{items.length} queries returned</span>
           <button className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors hover:bg-muted/50">
             <Filter className="w-4 h-4" />
           </button>
@@ -69,63 +71,82 @@ export function ResultViewer() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-auto p-4 bg-background/50">
+      <div ref={containerRef} className="flex-1 overflow-auto p-4 bg-background/50 relative">
         {viewMode === "table" && (
-          <div className="w-full relative rounded-xl border border-border/40 overflow-hidden bg-card">
-            <table className="w-full text-sm text-left text-muted-foreground">
-              <thead className="text-xs uppercase bg-muted/40 border-b border-border/40 text-foreground">
-                <tr>
-                  <th scope="col" className="px-6 py-3 font-semibold">ID</th>
-                  <th scope="col" className="px-6 py-3 font-semibold">Email</th>
-                  <th scope="col" className="px-6 py-3 font-semibold">Status</th>
-                  <th scope="col" className="px-6 py-3 font-semibold">Logins</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockData.map((row) => (
-                  <tr key={row.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
-                    <td className="px-6 py-3">{row.id}</td>
-                    <td className="px-6 py-3 font-medium text-foreground">{row.email}</td>
-                    <td className="px-6 py-3">
-                      <span className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium border",
-                        row.status === "online" ? "bg-green-100 text-green-700 border-green-200" : "bg-muted text-muted-foreground border-border/50"
-                      )}>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3">{row.logins}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Reorder.Group axis="y" values={items} onReorder={setItems} className="flex flex-col gap-6 w-full h-full pb-10">
+            {items.length === 0 && (
+              <div className="w-full text-center text-muted-foreground p-8">No recent query results. Run a query!</div>
+            )}
+            
+            {items.map((qRes: any, outerIdx: number) => (
+              <Reorder.Item 
+                key={qRes.statement || String(outerIdx)} 
+                value={qRes}
+                className="w-full relative rounded-xl border border-border/40 overflow-hidden bg-card shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow z-10 shrink-0"
+              >
+                <div className="bg-muted px-4 py-2 border-b border-border/60 text-xs font-mono font-semibold text-foreground truncate select-none">
+                  {qRes.statement}
+                </div>
+                
+                {qRes.error ? (
+                   <div className="p-4 flex flex-col gap-3 bg-red-500/5">
+                     <div className="text-red-500 font-mono text-xs break-words whitespace-pre-wrap">{qRes.error}</div>
+                     {qRes.aiExplanation && (
+                        <div className="text-sm text-foreground bg-card p-3 rounded-lg border border-border/50 shadow-sm flex gap-3 items-start">
+                           <Wand2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                           <div className="leading-relaxed opacity-90 break-words w-full overflow-hidden">
+                             <div className="font-semibold text-primary mb-1 text-xs uppercase tracking-wider">AI Diagnosis</div>
+                             {qRes.aiExplanation}
+                           </div>
+                        </div>
+                     )}
+                   </div>
+                ) : Array.isArray(qRes.result) && qRes.result.length === 0 ? (
+                   <div className="p-4 text-muted-foreground text-sm font-medium">Query executed successfully, but returned 0 rows.</div>
+                ) : Array.isArray(qRes.result) ? (
+                   <div className="w-full overflow-x-auto select-text">
+                     <table className="w-full text-sm text-left text-muted-foreground">
+                       <thead className="text-xs uppercase bg-muted/40 border-b border-border/40 text-foreground">
+                         <tr>
+                           {Object.keys(qRes.result[0]).map((key) => (
+                             <th key={key} scope="col" className="px-6 py-3 font-semibold whitespace-nowrap">{key}</th>
+                           ))}
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {qRes.result.map((row: any, idx: number) => (
+                           <tr key={idx} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                             {Object.values(row).map((val: any, jdx: number) => (
+                               <td key={jdx} className="px-6 py-3 font-medium text-foreground whitespace-nowrap max-w-[300px] overflow-hidden text-ellipsis">
+                                  {typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val)}
+                               </td>
+                             ))}
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   </div>
+                ) : (
+                   <div className="p-4 text-muted-foreground text-sm">Output format unknown.</div>
+                )}
+              </Reorder.Item>
+            ))}
+          </Reorder.Group>
         )}
 
         {viewMode === "json" && (
           <div className="w-full h-full rounded-xl bg-[#282c34] p-4 overflow-auto border border-border/20 cozy-shadow">
             <pre className="text-sm font-mono text-[#abb2bf]">
               <code>
-{JSON.stringify(mockData, null, 2)}
+{JSON.stringify(items, null, 2)}
               </code>
             </pre>
           </div>
         )}
 
         {viewMode === "chart" && (
-           <div className="w-full h-full min-h-[300px] flex items-center justify-center pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mockData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} opacity={0.5} />
-                <XAxis dataKey="email" stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  cursor={{fill: 'var(--muted)', opacity: 0.4}}
-                  contentStyle={{ borderRadius: '0.75rem', border: '1px solid var(--border)', backgroundColor: 'var(--card)' }}
-                />
-                <Bar dataKey="logins" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={60} />
-              </BarChart>
-            </ResponsiveContainer>
+           <div className="w-full h-full min-h-[300px] flex items-center justify-center pt-4 text-muted-foreground/50">
+             Charts currently unsupported for multi-query layout.
           </div>
         )}
       </div>

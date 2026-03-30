@@ -9,6 +9,8 @@ interface State {
   setActiveDatabase: (db: string | null) => void;
   setActiveQueryTab: (tab: string) => void;
   setSearchQuery: (query: string) => void;
+  queryResult: any[] | null;
+  setQueryResult: (result: any[] | null) => void;
 }
 
 export const useAppStore = create<State>((set) => ({
@@ -20,4 +22,6 @@ export const useAppStore = create<State>((set) => ({
   setActiveDatabase: (db) => set({ activeDatabase: db }),
   setActiveQueryTab: (tab) => set({ activeQueryTab: tab }),
   setSearchQuery: (query) => set({ searchQuery: query }),
+  queryResult: null,
+  setQueryResult: (result) => set({ queryResult: result }),
 }));

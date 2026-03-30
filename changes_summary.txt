@@ -1,0 +1,10 @@
+# CURRENT CHANGES SUMMARY
+
+I have finalized the features requested for the Unified Data Retrieval App. Here is a master log of the architectural and UI upgrades:
+
+- **Moved from Local Storage/Mock Data to Real Database**: Connected directly to the MySQL local DB utilizing Prisma to query actual row outputs dynamically.
+- **Implemented Multi-Query Parsing**: Semicolon-separated requests in the single Query Editor (e.g. `SHOW TABLES; DESCRIBE users;`) are now split on the backend and executed sequentially, sending an array object of results to the frontend.
+- **Framer Motion Refinement for Overlapping**: Prevented overlapping data tables caused by absolute `drag`-ging. The Result Viewer now employs robust `<Reorder.Group>` vertical list mapping layout bounds, meaning users can reorder tables fluidly without overlaps disrupting the UI spacing.
+- **Built the Elegant Ask AI Modal feature popup UI**: Instead of an ugly browser `window.prompt`, clicking "Ask AI" toggles a sleek, blurred React dialog matching the app's minimal styling that inputs to the backend LLM engine.
+- **Zero-row output fallback rendering**: Replaced erroneous blank headers to show a "returned 0 rows" display message on operational SQL like `INSERT`.
+- **Global Search History lookup**: Realtime dropdown overlay for accessing logged QueryHistory records.
