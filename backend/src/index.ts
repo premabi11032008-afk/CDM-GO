@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -28,16 +29,70 @@ app.post('/api/execute', async (req, res) => {
     const { query } = req.body;
     if (!query) return res.status(400).json({ error: 'No query provided' });
     
-    // Using prisma.$queryRawUnsafe to run the user's raw MySQL query
-    const result = await prisma.$queryRawUnsafe(query);
-    
-    // Convert BigInt to string since JSON.stringify doesn't support them out of the box
-    const serializedResult = JSON.parse(JSON.stringify(result, (key, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-    ));
-    res.json(serializedResult);
+    // Split on semicolons for multiple queries
+    const statements = query.split(';').map((q: string) => q.trim()).filter((q: string) => q.length > 0);
+    const multiResults = [];
+
+    for (const statement of statements) {
+      try {
+        // Run query
+        const result: any = await prisma.$queryRawUnsafe(statement);
+        
+        // Save to query history
+        await prisma.queryHistory.create({
+          data: { query: statement, source: 'user' }
+        });
+
+        const serialized = JSON.parse(JSON.stringify(result, (key, value) =>
+          typeof value === 'bigint' ? value.toString() : value
+        ));
+        
+        // Push object wrapping the query string and its result for frontend
+        multiResults.push({ statement, result: serialized });
+      } catch (err: any) {
+         multiResults.push({ statement, error: err.message });
+      }
+    }
+
+    res.json(multiResults);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to execute query. Check your SQL syntax.' });
+    res.status(500).json({ error: error.message || 'Failed to execute query.' });
+  }
+});
+
+// Endpoint to fetch history
+app.get('/api/history', async (req, res) => {
+  try {
+    const data = await prisma.queryHistory.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    res.json(data);
+  } catch (e) {
+     res.status(500).json({ error: 'Failed to fetch' });
+  }
+});
+
+// AI Suggestion Endpoint
+app.post('/api/suggest', async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(400).json({ error: 'GEMINI_API_KEY is missing from backend/.env' });
+    }
+    
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const aiPrompt = `You are an expert SQL assistant for a MySQL database. User prompt: "${prompt}". Return ONLY the raw SQL query string to run, without any markdown formatting, backticks, or explanation.`;
+    
+    const result = await model.generateContent(aiPrompt);
+    const response = await result.response;
+    let sql = response.text().trim();
+    if(sql.startsWith('```sql')) sql = sql.replace(/```sql|```/g, '').trim();
+
+    res.json({ suggestion: sql });
+  } catch (error: any) {
+    res.status(500).json({ error: 'AI failed: ' + error.message });
   }
 });
 
