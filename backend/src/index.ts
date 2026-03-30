@@ -22,6 +22,25 @@ app.get('/api/data', async (req, res) => {
   }
 });
 
+// Endpoint to execute raw SQL query directly on the real database
+app.post('/api/execute', async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'No query provided' });
+    
+    // Using prisma.$queryRawUnsafe to run the user's raw MySQL query
+    const result = await prisma.$queryRawUnsafe(query);
+    
+    // Convert BigInt to string since JSON.stringify doesn't support them out of the box
+    const serializedResult = JSON.parse(JSON.stringify(result, (key, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    ));
+    res.json(serializedResult);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to execute query. Check your SQL syntax.' });
+  }
+});
+
 // Endpoint to save new query
 app.post('/api/data', async (req, res) => {
   try {
