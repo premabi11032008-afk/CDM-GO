@@ -15,6 +15,30 @@ export function QueryEditor() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  const executeQuery = async (queryToRun: string) => {
+      if (!queryToRun.trim()) return;
+      setQueryResult(null); // clear previous results
+      try {
+        const res = await fetch('http://localhost:3001/api/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: queryToRun })
+        });
+        const json = await res.json();
+        
+        if (res.ok) {
+          // Backend returns an array of result sets: [{ statement, result, error }]
+          setQueryResult(Array.isArray(json) ? json : [json]);
+        } else {
+          alert('Database Error:\n' + json.error);
+          setQueryResult(null);
+        }
+      } catch (error) {
+        console.error('Failed to execute query', error);
+        setQueryResult(null);
+      }
+  };
+
   const handleAiSubmit = async () => {
      if (!aiPrompt.trim()) return;
      setIsAiLoading(true);
@@ -26,9 +50,13 @@ export function QueryEditor() {
         });
         const data = await res.json();
         if (res.ok) {
-            setSearchQuery(searchQuery + (searchQuery.trim() ? '\n\n' : '') + data.suggestion);
+            const newQuery = searchQuery + (searchQuery.trim() ? '\n\n' : '') + data.suggestion;
+            setSearchQuery(newQuery);
             setIsAiModalOpen(false);
             setAiPrompt("");
+            
+            // Auto run the query!
+            await executeQuery(newQuery);
         } else {
             alert("AI Error:\n" + data.error);
         }
@@ -134,29 +162,7 @@ export function QueryEditor() {
           </button>
         </div>
         <button
-          onClick={async () => {
-            if (!searchQuery.trim()) return;
-            setQueryResult(null); // clear previous results
-            try {
-              const res = await fetch('http://localhost:3001/api/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: searchQuery })
-              });
-              const json = await res.json();
-              
-              if (res.ok) {
-                // Backend returns an array of result sets: [{ statement, result, error }]
-                setQueryResult(Array.isArray(json) ? json : [json]);
-              } else {
-                alert('Database Error:\n' + json.error);
-                setQueryResult(null);
-              }
-            } catch (error) {
-              console.error('Failed to execute query', error);
-              setQueryResult(null);
-            }
-          }}
+          onClick={() => executeQuery(searchQuery)}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95"
         >
           <Play className="w-4 h-4" />

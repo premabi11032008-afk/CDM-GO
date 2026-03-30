@@ -64,7 +64,33 @@ app.post('/api/execute', async (req, res) => {
             try {
                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-               const aiPrompt = `The following MySQL query failed with an error.\nQuery: "${statement}"\nError: "${err.message}"\nExplain exactly why this failed in 1-2 simple sentences and provide the corrected SQL string. Keep it concise.`;
+    
+               // Dynamically fetch the absolute live schema of the entire database to give Gemini context
+               const schemaRows: any = await prisma.$queryRawUnsafe(`
+                 SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
+                 FROM INFORMATION_SCHEMA.COLUMNS 
+                 WHERE TABLE_SCHEMA = DATABASE();
+               `);
+    
+               // Filter out our internal hidden tables
+               const relevantSchema = schemaRows.filter((r: any) => 
+                 !['queryhistory', '_prisma_migrations', 'sys_config'].includes(r.TABLE_NAME.toLowerCase())
+               );
+    
+               // Format into a clean string mapped by Table -> Column (Type)
+               const schemaText = relevantSchema.map((r: any) => `${r.TABLE_NAME}.${r.COLUMN_NAME} (${r.DATA_TYPE})`).join(', ');
+
+               const aiPrompt = `You are an expert SQL assistant directly hooked into a MySQL database.
+The database has the following exact tables and columns you must use:
+[SCHEMA START]
+${schemaText}
+[SCHEMA END]
+
+The following MySQL query failed with an error.
+Query: "${statement}"
+Error: "${err.message}"
+Explain exactly why this failed in 1-2 simple sentences and provide the corrected SQL string. Keep it concise.`;
+    
                const aiRes = await model.generateContent(aiPrompt);
                aiExplanation = await aiRes.response.text();
             } catch (e) {
