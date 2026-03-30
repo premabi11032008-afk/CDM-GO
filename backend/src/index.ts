@@ -26,17 +26,30 @@ app.get('/api/data', async (req, res) => {
 // Endpoint to execute raw SQL query directly on the real database
 app.post('/api/execute', async (req, res) => {
   try {
-    const { query } = req.body;
+    const { query, dbUrl } = req.body;
     if (!query) return res.status(400).json({ error: 'No query provided' });
     
-    // Split on semicolons for multiple queries
+    let targetDb = prisma;
+    let isCustomDb = false;
+    if (dbUrl && dbUrl.startsWith('mysql://')) {
+       targetDb = new PrismaClient({ datasources: { db: { url: dbUrl } } });
+       isCustomDb = true;
+    }
+
     const statements = query.split(';').map((q: string) => q.trim()).filter((q: string) => q.length > 0);
     const multiResults = [];
 
     for (const statement of statements) {
+      if (statement.toLowerCase().startsWith('use ')) {
+         multiResults.push({ 
+           statement, 
+           error: "The 'USE' command is not supported by the query engine. Please supply your target database directly in the Custom Connection URL on the left Sidebar instead."
+         });
+         continue;
+      }
       try {
         // Run query
-        let result: any = await prisma.$queryRawUnsafe(statement);
+        let result: any = await targetDb.$queryRawUnsafe(statement);
         
         // Hide internal tables from structural queries (like SHOW TABLES)
         if (Array.isArray(result)) {
@@ -101,6 +114,8 @@ Explain exactly why this failed in 1-2 simple sentences and provide the correcte
       }
     }
 
+    if (isCustomDb) await targetDb.$disconnect();
+
     res.json(multiResults);
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to execute query.' });
@@ -110,34 +125,66 @@ Explain exactly why this failed in 1-2 simple sentences and provide the correcte
 // Endpoint to fetch history
 app.get('/api/history', async (req, res) => {
   try {
-    const data = await prisma.queryHistory.findMany({
+    const history = await prisma.queryHistory.findMany({
       orderBy: { createdAt: 'desc' },
       take: 20
     });
-    res.json(data);
-  } catch (e) {
-     res.status(500).json({ error: 'Failed to fetch' });
+    res.json(history);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
+});
+
+app.post('/api/chat', async (req, res) => {
+   try {
+     const { prompt } = req.body;
+     if (!process.env.GEMINI_API_KEY) return res.status(400).json({ error: "No API Key configured." });
+     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+     const result = await model.generateContent(`You are DataNexus, an expert AI assistant seamlessly integrated into a desktop SQL database management tool. Answer the user's question about databases, connection strings, SQL dialects, or general troubleshooting. State concisely and confidently. Do not use markdown backticks unless strictly returning code. Question: ${prompt}`);
+     res.json({ reply: await result.response.text() });
+   } catch (error: any) {
+     res.status(500).json({ error: error.message });
+   }
 });
 
 // AI Suggestion Endpoint
 app.post('/api/suggest', async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const { prompt, dbUrl } = req.body;
     if (!process.env.GEMINI_API_KEY) {
       return res.status(400).json({ error: 'GEMINI_API_KEY is missing from backend/.env' });
     }
     
+    let targetDb = prisma;
+    let isCustomDb = false;
+    if (dbUrl && dbUrl.startsWith('mysql://')) {
+       targetDb = new PrismaClient({ datasources: { db: { url: dbUrl } } });
+       isCustomDb = true;
+    }
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const aiPrompt = `You are an expert SQL assistant for a MySQL database. User prompt: "${prompt}". Return ONLY the raw SQL query string to run, without any markdown formatting, backticks, or explanation.`;
     
-    const result = await model.generateContent(aiPrompt);
-    const response = await result.response;
-    let sql = response.text().trim();
-    if(sql.startsWith('```sql')) sql = sql.replace(/```sql|```/g, '').trim();
+    const schemaRows: any = await targetDb.$queryRawUnsafe(`
+        SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE();
+    `);
+    const schemaText = schemaRows.map((r: any) => `${r.TABLE_NAME}.${r.COLUMN_NAME} (${r.DATA_TYPE})`).join(', ');
 
-    res.json({ suggestion: sql });
+    const aiPrompt = `You are an expert SQL assistant for a MySQL database. 
+    Schema: ${schemaText}
+    User prompt: "${prompt}". 
+    Return ONLY the raw SQL query string to run, without any markdown formatting, backticks, or explanation.`;
+    
+    const aiRes = await model.generateContent(aiPrompt);
+    const resultText = aiRes.response.text();
+    
+    if (isCustomDb) await targetDb.$disconnect();
+    
+    const cleanQuery = resultText.replace(/```sql|```/g, '').trim();
+    res.json({ suggestion: cleanQuery });
   } catch (error: any) {
     res.status(500).json({ error: 'AI failed: ' + error.message });
   }

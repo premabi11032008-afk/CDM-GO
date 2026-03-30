@@ -4,6 +4,8 @@ import { Sidebar } from "@/components/Sidebar";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { QueryEditor } from "@/components/QueryEditor";
 import { ResultViewer } from "@/components/ResultViewer";
+import { GlobalChatbot } from "@/components/GlobalChatbot";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 export default function App() {
   const { isSidebarOpen, setSidebarOpen } = useAppStore();
@@ -33,17 +35,29 @@ export default function App() {
         </header>
 
         {/* Workspace */}
-        <div className="flex-1 flex flex-col lg:flex-row gap-6 p-4 md:p-6 pt-0 overflow-hidden">
-          {/* Query Editor Panel */}
-          <section className="flex-1 min-h-[300px] lg:min-h-0 flex flex-col">
-            <QueryEditor />
-          </section>
+        <div className="flex-1 flex flex-col w-full h-full p-4 md:p-6 pt-0 overflow-hidden relative">
+          <PanelGroup direction="horizontal" className="w-full h-full gap-2 rounded-2xl">
+            
+            {/* Query Editor Panel */}
+            <Panel defaultSize={40} minSize={20} className="flex flex-col min-h-[300px]">
+              <QueryEditor />
+            </Panel>
 
-          {/* Results Panel */}
-          <section className="flex-1 min-h-[400px] lg:min-h-0 flex flex-col">
-            <ResultViewer />
-          </section>
+            {/* Draggable Divider */}
+            <PanelResizeHandle className="cursor-col-resize w-2 -mx-1 bg-border/40 hover:bg-primary/50 transition-all rounded-full flex flex-col items-center justify-center z-50">
+              <div className="h-8 w-1 bg-muted-foreground/30 rounded-full" />
+            </PanelResizeHandle>
+
+            {/* Results Panel */}
+            <Panel defaultSize={60} minSize={30} className="flex flex-col min-h-[400px]">
+              <ResultViewer />
+            </Panel>
+            
+          </PanelGroup>
         </div>
+
+        {/* Global Floating AI Chat */}
+        <GlobalChatbot />
       </main>
     </div>
   );

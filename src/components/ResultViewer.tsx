@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Table, Code, BarChart2, Download, Filter, MoreHorizontal, Maximize2, Wand2 } from "lucide-react";
+import { Table, Code, BarChart2, Download, Filter, MoreHorizontal, Maximize2, Wand2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { useAppStore } from "@/store/useAppStore";
@@ -82,10 +82,18 @@ export function ResultViewer() {
               <Reorder.Item 
                 key={qRes.statement || String(outerIdx)} 
                 value={qRes}
-                className="w-full relative rounded-xl border border-border/40 overflow-hidden bg-card shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow z-10 shrink-0"
+                className="w-full relative rounded-xl border border-border/40 overflow-hidden bg-card shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow z-10 shrink-0 group"
               >
-                <div className="bg-muted px-4 py-2 border-b border-border/60 text-xs font-mono font-semibold text-foreground truncate select-none">
-                  {qRes.statement}
+                <div className="bg-muted px-4 py-2 border-b border-border/60 flex items-center justify-between">
+                  <span className="text-xs font-mono font-semibold text-foreground truncate select-none">
+                    {qRes.statement}
+                  </span>
+                  <button 
+                     onClick={() => setItems(prev => prev.filter((_, idx) => idx !== outerIdx))}
+                     className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/10 text-muted-foreground hover:text-red-500 cursor-pointer"
+                  >
+                     <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
                 
                 {qRes.error ? (

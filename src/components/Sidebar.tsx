@@ -1,4 +1,5 @@
-import { Database, Clock, Star, Hexagon, Server, Activity, ChevronRight, X } from "lucide-react";
+import { useState } from "react";
+import { Database, Clock, Star, Hexagon, Server, Activity, X, Link } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +11,15 @@ const connectors = [
 ];
 
 export function Sidebar() {
-  const { isSidebarOpen, setSidebarOpen, activeDatabase, setActiveDatabase } = useAppStore();
+  const { isSidebarOpen, setSidebarOpen, activeDatabase, setActiveDatabase, customDbUrl, setCustomDbUrl, setQueryResult, setSearchQuery } = useAppStore();
+  const [localUrl, setLocalUrl] = useState(customDbUrl);
+
+  const handleConnect = () => {
+    setCustomDbUrl(localUrl);
+    setQueryResult(null);
+    setSearchQuery("");
+    setActiveDatabase("custom");
+  };
 
   return (
     <aside
@@ -39,7 +48,7 @@ export function Sidebar() {
           <h3 className="mb-2 px-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Data Connectors
           </h3>
-          <ul className="space-y-1">
+          <ul className="space-y-1 mb-4">
             {connectors.map((connector) => (
               <li key={connector.id}>
                 <button
@@ -61,6 +70,26 @@ export function Sidebar() {
               </li>
             ))}
           </ul>
+          
+          <div className="mt-4 p-3 bg-muted/30 rounded-xl border border-border/50">
+             <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-foreground">Custom Connection</span>
+             </div>
+             <input
+                type="text"
+                placeholder="mysql://user:pass@host:3306/db"
+                className="w-full text-xs p-2 rounded-lg border border-border/50 bg-background mb-2 focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                value={localUrl}
+                onChange={e => setLocalUrl(e.target.value)}
+             />
+             <button
+                onClick={handleConnect}
+                className="w-full text-xs font-semibold bg-foreground text-background py-1.5 rounded-lg hover:bg-foreground/90 transition-colors flex items-center justify-center gap-2"
+             >
+                <Link className="w-3 h-3" />
+                Connect & Clear Data
+             </button>
+          </div>
         </div>
 
         <div className="px-4">

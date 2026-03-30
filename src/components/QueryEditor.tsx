@@ -10,7 +10,7 @@ const tabs = [
 ];
 
 export function QueryEditor() {
-  const { activeQueryTab, setActiveQueryTab, activeDatabase, setQueryResult, searchQuery, setSearchQuery } = useAppStore();
+  const { activeQueryTab, setActiveQueryTab, activeDatabase, setQueryResult, searchQuery, setSearchQuery, customDbUrl } = useAppStore();
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -22,7 +22,7 @@ export function QueryEditor() {
         const res = await fetch('http://localhost:3001/api/execute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: queryToRun })
+          body: JSON.stringify({ query: queryToRun, dbUrl: customDbUrl || undefined })
         });
         const json = await res.json();
         
@@ -46,7 +46,7 @@ export function QueryEditor() {
         const res = await fetch('http://localhost:3001/api/suggest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: aiPrompt })
+            body: JSON.stringify({ prompt: aiPrompt, dbUrl: customDbUrl || undefined })
         });
         const data = await res.json();
         if (res.ok) {
