@@ -60,10 +60,14 @@ app.post('/api/execute', async (req, res) => {
            });
         }
         
-        // Save to query history
-        await prisma.queryHistory.create({
-          data: { query: statement, source: 'user' }
-        });
+        // Query history is helpful, but it should not make a custom DB query fail.
+        try {
+          await prisma.queryHistory.create({
+            data: { query: statement, source: 'user' }
+          });
+        } catch (historyError) {
+          console.error("Failed to save query history", historyError);
+        }
 
         const serialized = JSON.parse(JSON.stringify(result, (key, value) =>
           typeof value === 'bigint' ? value.toString() : value
@@ -79,7 +83,7 @@ app.post('/api/execute', async (req, res) => {
                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     
                // Dynamically fetch the absolute live schema of the entire database to give Gemini context
-               const schemaRows: any = await prisma.$queryRawUnsafe(`
+               const schemaRows: any = await targetDb.$queryRawUnsafe(`
                  SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
                  FROM INFORMATION_SCHEMA.COLUMNS 
                  WHERE TABLE_SCHEMA = DATABASE();
