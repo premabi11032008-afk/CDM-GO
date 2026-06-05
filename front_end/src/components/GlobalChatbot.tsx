@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MessageSquare, X, Send, Bot, User, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/api";
 
 export function GlobalChatbot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -18,7 +19,7 @@ export function GlobalChatbot() {
     setIsLoading(true);
 
     try {
-        const res = await fetch('http://localhost:3001/api/chat', {
+        const res = await fetch(apiUrl('/api/chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: userMsg })

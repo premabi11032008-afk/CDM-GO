@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Play, Share, History, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
+import { apiUrl } from "@/lib/api";
 
 const tabs = [
   { id: "query-1", name: "users_active.sql" },
@@ -19,7 +20,7 @@ export function QueryEditor() {
       if (!queryToRun.trim()) return;
       setQueryResult(null); // clear previous results
       try {
-        const res = await fetch('http://localhost:3001/api/execute', {
+        const res = await fetch(apiUrl('/api/execute'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: queryToRun, dbUrl: customDbUrl || undefined })
@@ -43,7 +44,7 @@ export function QueryEditor() {
      if (!aiPrompt.trim()) return;
      setIsAiLoading(true);
      try {
-        const res = await fetch('http://localhost:3001/api/suggest', {
+        const res = await fetch(apiUrl('/api/suggest'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: aiPrompt, dbUrl: customDbUrl || undefined })

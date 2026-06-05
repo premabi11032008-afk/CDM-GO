@@ -1,6 +1,7 @@
 import { Search, Command, Mic, Clock } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useState, useEffect } from "react";
+import { apiUrl } from "@/lib/api";
 
 export function GlobalSearch() {
   const { searchQuery, setSearchQuery } = useAppStore();
@@ -9,7 +10,7 @@ export function GlobalSearch() {
 
   useEffect(() => {
     if (isFocused) {
-      fetch('http://localhost:3001/api/history')
+      fetch(apiUrl('/api/history'))
         .then(res => res.json())
         .then(data => setHistory(data))
         .catch(console.error);
